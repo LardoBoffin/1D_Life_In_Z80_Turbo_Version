@@ -8,7 +8,8 @@ VDP_CTRL:   EQU 09H
     ORG     0100H
 
 START:
-    LD      HL, START_MESSAGE_TEXT
+	LD      HL, START_MESSAGE_TEXT
+
 START_MESSAGE:
     LD      A, (HL)
     OR      A
@@ -16,6 +17,10 @@ START_MESSAGE:
     CALL    PRINT_CHAR
     INC     HL
     JR      START_MESSAGE
+	;LD      DE, 0C00H
+	;LD      BC, 32
+	;LDIR
+	;CALL    SET_VRAM_WRITE
 
 END_OF_MESSAGE:
     RST     08H
@@ -236,6 +241,10 @@ GLYPH_STAR:
 ; UPDATE_DISPLAY (Scrolls buffer & blasts 960 bytes to VRAM)
 ; ============================================================
 UPDATE_DISPLAY:
+
+	LD 		A,(CUR_ROW)
+	CP		23
+	JR		C, UPDATE_DISPLAY_NO_SCROLL	
     LD      HL, SCREEN_BUF + 40
     LD      DE, SCREEN_BUF
     LD      BC, 920
@@ -244,6 +253,18 @@ UPDATE_DISPLAY:
     LD      DE, SCREEN_BUF + 920
     LD      BC, 40
     LDIR
+	JP 		CLEAR_VBLANK
+
+UPDATE_DISPLAY_NO_SCROLL:
+    CALL    GET_ROW_ADDRESS
+    LD      HL, CUR_ROW
+    INC     (HL)
+    LD      HL, NEW_LINE_BUFFER
+    LD      DE, (SCREEN_BUFF_LINE)  ;write to the correct row in the buffer
+    LD      BC, 40
+    LDIR
+    
+CLEAR_VBLANK:
     IN      A, (VDP_CTRL)       ; Clear stale VBLANK flag
 
 WAIT_VBLANK:
@@ -305,12 +326,31 @@ NO_TAP:
     LD      (SEED), A
     RET
 
+GET_ROW_ADDRESS:
+    ;repeatedly add the current row number to itself to get the offset into the buffer
+    LD L, A             ; HL = Row
+    LD H, 0
+    ADD HL, HL          ; HL = Row * 2
+    ADD HL, HL          ; HL = Row * 4
+    ADD HL, HL          ; HL = Row * 8
+    LD E, L             ; Save (Row * 8) in DE
+    LD D, H
+    ADD HL, HL          ; HL = Row * 16
+    ADD HL, HL          ; HL = Row * 32
+    ADD HL, DE          ; HL = (Row * 32) + (Row * 8) = Row * 40
+    LD DE, SCREEN_BUF   ; Get the starting address of the screenbuffer
+    ADD HL, DE
+    LD (SCREEN_BUFF_LINE), HL
+    RET
+
 SEED:               DEFB 055H
 GEN_COUNT:          DEFB 0
+CUR_ROW:			DEFB 0
 DATA_X:             DEFS 40, 32
 DATA_Y:             DEFS 40, 32
 START_MESSAGE_TEXT: DEFB '--- Press Any Key To Start ---', 0
 NEW_LINE_BUFFER:    DEFS 40, 32
 SCREEN_BUF:         DEFS 960
+SCREEN_BUFF_LINE:   DEFS 2
 
-    END
+END
