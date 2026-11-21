@@ -256,12 +256,14 @@ UPDATE_DISPLAY:
 	JP 		CLEAR_VBLANK
 
 UPDATE_DISPLAY_NO_SCROLL:
-    CALL    GET_ROW_ADDRESS
-    LD      HL, CUR_ROW
-    INC     (HL)
-    LD      HL, NEW_LINE_BUFFER
-    LD      DE, (SCREEN_BUFF_LINE)  ;write to the correct row in the buffer
-    LD      BC, 40
+    LD      C, A                ; Save A (CUR_ROW) in C
+    CALL    GET_ROW_ADDRESS     ; This corrupts A
+    EX      DE, HL              ; Put HL in DE
+    LD      A, C                ; Restore original CUR_ROW
+    INC     A                   ; Increment row
+    LD      (CUR_ROW), A        ; Save it
+    LD      HL, NEW_LINE_BUFFER ; Start point
+    LD      BC, 40              ; Copy 40 bytes from HL to DE (The return address of GET_ROW_ADDRESS)
     LDIR
     
 CLEAR_VBLANK:
@@ -271,7 +273,7 @@ WAIT_VBLANK:
     IN      A, (VDP_CTRL)
     RLCA
     JR      NC, WAIT_VBLANK
-    DI							;disable interrupts
+    DI							; disable interrupts
     LD      HL, 0000H
     CALL    SET_VRAM_WRITE
     LD      HL, SCREEN_BUF
@@ -285,7 +287,7 @@ DUMP_256:
     JR      NZ, DUMP_256
     LD      B, 192              ; + 192 = 960 bytes
     OTIR
-    EI							;enable interrupts again
+    EI							; enable interrupts again
     RET
 
 ; ============================================================
