@@ -1,4 +1,4 @@
-# 1D_Life_In_Z80_Turbo_Version
+# 1D Life In Z80 Turbo Version
 A faster screen draw routine that does not rely on the MOS to scroll - the MOS screen update process is relatively slow as it apparently has to copy the contents of the screen back to RAM, update it and send it back again each time it has to scroll. The is slow and leads to artefacts briefly flashing up on the screen. In the case of 'https://github.com/LardoBoffin/1D_Life_In_Z80_For_The_Tatung_Einsten-in' this means life briefly appears where it should not, which I guess is very much in keeping with life...
 
 The screen setup routines and copy of the screen buffer to VDP were supplied by AI as I am still trying to figure out how the VDP works having come from computers with main RAM mapped screens such as the BBC Micro. 
