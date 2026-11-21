@@ -5,4 +5,6 @@ The screen setup routines and copy of the screen buffer to VDP were supplied by 
 
 The basic process is to write the output to a 960 byte buffer (1 byte per character) and then when a new line of text is ready to be displayed move the data up a row, put the new data at the bottom of the screen and then send the whole lot to the VDP after waiting for a vertical blank. The creatures scroll up the screen at a ridiculous rate with no untoward artefacts. 
 
-Currently the creatures start appearing at the bottom of the screen and instantly scroll but they need to start at the top, fill the screen and then scroll - To Do!
+The creatures are now drawn starting at the top of the screen by calculating their position in the screen buffer correctly and incrementing that position once per line drawn. Once writing to the bottom line start the scrolling process.
+
+The calculation is a brute force case of repeatedly adding the current row to itself until the value is * 40.
