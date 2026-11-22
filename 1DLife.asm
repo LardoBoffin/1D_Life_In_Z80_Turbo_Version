@@ -9,6 +9,7 @@ VDP_CTRL:   EQU 09H
 
 START:
 	LD      HL, START_MESSAGE_TEXT
+    CALL    INIT_RNG ;should be in END_OF_MESSAGE not here
 
 START_MESSAGE:
     LD      A, (HL)
@@ -26,7 +27,7 @@ END_OF_MESSAGE:
     RST     08H
     DEFB    156                 ; Wait for key press
     CALL    INIT_TEXT_MODE      ; Switch VDP to 40x24 Text Mode & load font
-    CALL    INIT_RNG
+    ;CALL    INIT_RNG
 
 MAIN_LOOP:
     LD      B, 39
@@ -53,79 +54,86 @@ STORE_VALUE:
     LD      A, 26
     LD      (GEN_COUNT), A
 
-GENERATION_LOOP:
-    LD      IX, DATA_X+37
-    LD      IY, DATA_Y+37
-    LD      B, 35               ; Update cells 37 down to 3
+    GENERATION_LOOP:
+        LD      B, 35               ; Update cells 37 down to 3
+        LD      HL, DATA_X+39       ; Start directly at i+2 (cell 39)
+        LD      DE, DATA_Y+37
 
-CELL:
-    LD      C, 0
-    LD      A, (IX+2)
-    CP      '*'
-    JR      NZ, I_PLUS_ONE
-    INC     C
-I_PLUS_ONE:
-    LD      A, (IX+1)
-    CP      '*'
-    JR      NZ, I_MINUS_ONE
-    INC     C
-I_MINUS_ONE:
-    LD      A, (IX-1)
-    CP      '*'
-    JR      NZ, I_MINUS_TWO
-    INC     C
-I_MINUS_TWO:
-    LD      A, (IX-2)
-    CP      '*'
-    JR      NZ, CURRENT_CELL
-    INC     C
+    I_PLUS_TWO:
+        LD      C, 0
+        LD      A, (HL)             ; Check i+2
+        CP      '*'
+        JR      NZ, I_PLUS_ONE
+        INC     C
+    I_PLUS_ONE:
+        DEC     HL                  ; Move to i+1
+        LD      A, (HL)             ; Check i+1
+        CP      '*'
+        JR      NZ, I_MINUS_ONE
+        INC     C
+    I_MINUS_ONE:
+        DEC     HL                  ; Skip i+0
+        DEC     HL                  ; Move to i-1
+        LD      A, (HL)             ; Check i-1
+        CP      '*'
+        JR      NZ, I_MINUS_TWO
+        INC     C
+    I_MINUS_TWO:
+        DEC     HL                  ; Move to i-2
+        LD      A, (HL)             ; Check i-2
+        CP      '*'
+        JR      NZ, CURRENT_CELL
+        INC     C
 
-CURRENT_CELL:
-    LD      A, (IX+0)
-    CP      '*'
-    JR      Z, CURRENTLY_STAR
+    CURRENT_CELL:
+        INC     HL                  ; Move to i-1
+        INC     HL                  ; Move to i+0
+        LD      A, (HL)             ; Check current cell (i+0)
+        CP      '*'
+        JR      Z, CURRENTLY_STAR
 
-CURRENTLY_BLANK:
-    LD      A, C
-    CP      2
-    JR      Z, SET_Y_STAR
-    CP      3
-    JR      Z, SET_Y_STAR
-    JR      SET_Y_BLANK
+    CURRENTLY_BLANK:
+        LD      A, C
+        CP      2
+        JR      Z, SET_Y_STAR
+        CP      3
+        JR      Z, SET_Y_STAR
+        JR      SET_Y_BLANK
 
-CURRENTLY_STAR:
-    LD      A, C
-    CP      2
-    JR      Z, SET_Y_STAR
-    CP      4
-    JR      Z, SET_Y_STAR
+    CURRENTLY_STAR:
+        LD      A, C
+        CP      2
+        JR      Z, SET_Y_STAR
+        CP      4
+        JR      Z, SET_Y_STAR
 
-SET_Y_BLANK:
-    LD      A, ' '
-    JR      STORE_LIFE_VALUE
+    SET_Y_BLANK:
+        LD      A, ' '
+        JR      STORE_LIFE_VALUE
 
-SET_Y_STAR:
-    LD      A, '*'
+    SET_Y_STAR:
+        LD      A, '*'
 
-STORE_LIFE_VALUE:
-    LD      (IY+0), A
-    DEC     IX
-    DEC     IY
-    DJNZ    CELL
+    STORE_LIFE_VALUE:
+        LD      (DE), A
+        INC     HL                  ; Move from i+0 to i+1 (which is (i-1)+2 for next loop!)
+        DEC     DE
+        DJNZ    I_PLUS_TWO
 
-    ; Copy DATA_Y -> DATA_X and DATA_Y -> NEW_LINE_BUFFER (40 bytes)
-    LD      HL, DATA_Y
-    LD      DE, DATA_X
-    LD      BC, 40
-    LDIR
+        ; Copy DATA_Y -> DATA_X (HL-> DE) (40 bytes)
+        LD      HL, DATA_Y
+        LD      DE, DATA_X
+        LD      BC, 40
+        LDIR
 
-    LD      HL, DATA_Y
-    LD      DE, NEW_LINE_BUFFER
-    LD      BC, 40
-    LDIR
+        ; copy DATA_Y -> NEW_LINE_BUFFER (40 bytes)
+        LD      HL, DATA_Y
+        LD      DE, NEW_LINE_BUFFER
+        LD      BC, 40
+        LDIR
 
-    ; Scroll screen up and draw new generation at row 23
-    CALL    UPDATE_DISPLAY
+        ; Scroll screen up and draw new generation at row 23
+        CALL    UPDATE_DISPLAY
 
 END_OF_GENERATION_LOOP:
     LD      A, (GEN_COUNT)
@@ -265,7 +273,8 @@ UPDATE_DISPLAY_NO_SCROLL:
     LD      HL, NEW_LINE_BUFFER ; Start point
     LD      BC, 40              ; Copy 40 bytes from HL to DE (The return address of GET_ROW_ADDRESS)
     LDIR
-    
+    CALL    SKIP_VBLANK         ;no need to wait for vblank if we are not scrolling the screen
+
 CLEAR_VBLANK:
     IN      A, (VDP_CTRL)       ; Clear stale VBLANK flag
 
@@ -273,20 +282,52 @@ WAIT_VBLANK:
     IN      A, (VDP_CTRL)
     RLCA
     JR      NC, WAIT_VBLANK
+
+SKIP_VBLANK:
     DI							; disable interrupts
     LD      HL, 0000H
     CALL    SET_VRAM_WRITE
     LD      HL, SCREEN_BUF
     LD      C, VDP_DATA
-    LD      D, 3                ; 3 * 256 = 768 bytes
-    LD      B, 0
+    LD      A, 30            ; 30 outer iterations (30 * 32 = 960 bytes)
 
-DUMP_256:
-    OTIR
-    DEC     D
-    JR      NZ, DUMP_256
-    LD      B, 192              ; + 192 = 960 bytes
-    OTIR
+    ;OTIR has been unrolled to reduce t-states. OTIR takes 21 t-states per iteration, OUTI takes 16 per iteration
+TRANSFER_LOOP:
+    LD      B, 32            ; B will decrement from 32 down to 0 during the 32 OUTIs
+    OUTI    
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    OUTI
+    DEC     A
+    JP      NZ, TRANSFER_LOOP
     EI							; enable interrupts again
     RET
 
