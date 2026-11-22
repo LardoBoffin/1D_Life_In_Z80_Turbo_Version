@@ -8,3 +8,11 @@ The basic process is to write the output to a 960 byte buffer (1 byte per charac
 The creatures are now drawn starting at the top of the screen by calculating their position in the screen buffer correctly and incrementing that position once per line drawn. Once writing to the bottom line start the scrolling process.
 
 The calculation is a brute force case of repeatedly adding the current row to itself until the value is * 40.
+
+This has been sped up a bit by:
+
+Replacing IX and IY with HL and DE as they are faster.
+
+Unroll OTIR with OUTI as OTIR takes 21 t-states per iteration, OUTI takes 16 per iteration. This should now send the whole 960 bytes in one vblank.
+
+Remove the wait for vblank when not scrolling.
