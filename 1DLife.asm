@@ -9,7 +9,7 @@ VDP_CTRL:   EQU 09H
 
 START:
 	LD      HL, START_MESSAGE_TEXT
-    CALL    INIT_RNG ;should be in END_OF_MESSAGE not here
+    ;CALL    INIT_RNG ;should be in END_OF_MESSAGE not here
 
 START_MESSAGE:
     LD      A, (HL)
@@ -18,16 +18,13 @@ START_MESSAGE:
     CALL    PRINT_CHAR
     INC     HL
     JR      START_MESSAGE
-	;LD      DE, 0C00H
-	;LD      BC, 32
-	;LDIR
-	;CALL    SET_VRAM_WRITE
+	CALL    SET_VRAM_WRITE
 
 END_OF_MESSAGE:
     RST     08H
     DEFB    156                 ; Wait for key press
     CALL    INIT_TEXT_MODE      ; Switch VDP to 40x24 Text Mode & load font
-    ;CALL    INIT_RNG
+    CALL    INIT_RNG
 
 MAIN_LOOP:
     LD      B, 39
